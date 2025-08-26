@@ -7,7 +7,6 @@
 // @match        https://www.e-nextlevel.jp/*
 // @grant        none
 // ==/UserScript==
-
 (function() {
     'use strict';
 
@@ -19,7 +18,10 @@
             '.job-list__narrow-down-large--sp',
             '.common-modal.job-list__banner-modal',
             'dialog[id^="banner_modal_"]',
-            '.job-list__banner-modal'
+            '.job-list__banner-modal',
+            '.banner',
+            '.bannerBox',
+            '.flicking-viewport.carousel'
         ],
         
         // ログ出力の設定
