@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         NEXT LEVEL ジョブリストバナー非表示 (改良版)
 // @namespace    http://tampermonkey.net/
-// @version      1.3
+// @version      1.4
 // @description  https://www.e-nextlevel.jp/work/list のバナー要素を効率的に非表示にし、詳細なログを出力
 // @author       You
 // @match        https://www.e-nextlevel.jp/*
-// @grant        none
+// @grant        GM_addStyle
 // ==/UserScript==
 
 (function() {
@@ -28,162 +28,95 @@
     };
 
     /**
-     * @class NextLevelBannerHider
-     * バナー要素の非表示とDOM監視を管理するメインクラス
+     * ログ出力ヘルパー
      */
-    class NextLevelBannerHider {
+    function log(message, type = 'info') {
+        if (!CONFIG.LOGGING_ENABLED) return;
+        const prefix = CONFIG.LOGGING_PREFIX;
+        const icon = {
+            'start': '🚀',
+            'end': '🏁',
+            'success': '✅',
+            'error': '❌',
+            'info': 'ℹ️'
+        }[type] || '';
+        console.log(`${icon} ${prefix} ${message}`);
+    }
+
+    /**
+     * @class NextLevelHider
+     * バナー要素の非表示とDOM監視を管理
+     */
+    class NextLevelHider {
         constructor() {
             this.hiddenElements = new Set();
             this.observer = null;
         }
-
-        /**
-         * アプリケーションの初期化と開始
-         */
+        
         init() {
-            this.log('🚀 スクリプトを開始します', 'start');
-            
-            // 初回実行とDOM監視の開始
-            this.hideAllElements();
+            log('🚀 スクリプトを開始します', 'start');
+            this.addInstantCSSRules();
             this.startObservingDOM();
-
-            this.log('🏁 初期化完了', 'end');
+            log('🏁 初期化完了', 'end');
         }
 
         /**
-         * 指定されたセレクターに一致する全ての要素を非表示にする
+         * GM_addStyle を使って、CSSルールを即座に追加する
+         * これにより、要素のチラつきを防ぐ
          */
-        hideAllElements() {
-            let count = 0;
-            CONFIG.SELECTORS_TO_HIDE.forEach(selector => {
-                const elements = document.querySelectorAll(selector);
-                if (elements.length > 0) {
-                    elements.forEach(element => {
-                        if (this.hideElement(element, selector)) {
-                            count++;
-                        }
-                    });
-                } else {
-                    this.log(`セレクター '${selector}' に該当する要素が見つかりませんでした`, 'info');
-                }
-            });
-            if (count > 0) {
-                this.log(`✅ ${count} 個の要素を非表示にしました`, 'success');
+        addInstantCSSRules() {
+            const selectors = CONFIG.SELECTORS_TO_HIDE.join(', ');
+            if (typeof GM_addStyle !== 'undefined') {
+                GM_addStyle(`${selectors} { display: none !important; visibility: hidden !important; }`);
+                log(`✅ CSSルールを適用し、${CONFIG.SELECTORS_TO_HIDE.length}個のセレクターを即時非表示にしました`, 'success');
+            } else {
+                log('❌ GM_addStyleが見つかりません。@grant GM_addStyleが宣言されているか確認してください。', 'error');
             }
         }
 
         /**
-         * 単一の要素を非表示にする
-         * @param {Element} element - 非表示にする要素
-         * @param {string} selector - 要素のセレクター（ログ用）
-         * @returns {boolean} - 新たに要素を非表示にしたか
-         */
-        hideElement(element, selector) {
-            // 重複処理を避けるためのユニークIDを生成
-            const uniqueId = element.tagName + element.className + element.id;
-            if (this.hiddenElements.has(uniqueId)) {
-                return false;
-            }
-
-            // モーダル要素の特別な処理
-            if (element.tagName === 'DIALOG' && element.open) {
-                element.close();
-                document.body.style.overflow = '';
-            }
-
-            // スタイルを直接適用して非表示にする
-            element.style.setProperty('display', 'none', 'important');
-            this.hiddenElements.add(uniqueId);
-            
-            this.log(`'${selector}' に一致する要素を非表示にしました`, 'info');
-            return true;
-        }
-
-        /**
-         * DOMの変更を監視し、動的に追加された要素を非表示にする
-         * 検索フォームのトグルボタンもこの監視内で追加
+         * DOM変更を監視し、動的に追加された要素を非表示にする
          */
         startObservingDOM() {
             if (this.observer) return;
-
-            // 検索フォームが追加されたかどうかのフラグ
-            let isSearchFormButtonAdded = false;
-
             this.observer = new MutationObserver((mutations) => {
                 mutations.forEach(mutation => {
                     mutation.addedNodes.forEach(node => {
                         if (node.nodeType === 1 && node instanceof Element) {
-                            // バナー非表示の処理
                             CONFIG.SELECTORS_TO_HIDE.forEach(selector => {
-                                if (node.matches(selector)) {
+                                if (node.matches(selector) && !this.hiddenElements.has(node)) {
                                     this.hideElement(node, selector);
                                 }
                                 node.querySelectorAll(selector).forEach(child => {
-                                    this.hideElement(child, selector);
+                                    if (!this.hiddenElements.has(child)) {
+                                        this.hideElement(child, selector);
+                                    }
                                 });
                             });
-                            
-                            // 検索フォームボタンの追加処理
-                            if (!isSearchFormButtonAdded && node.matches('.my-list__search')) {
-                                this.addSearchFormToggleButton(node);
-                                isSearchFormButtonAdded = true;
-                            }
                         }
                     });
                 });
             });
-
             this.observer.observe(document.body, { childList: true, subtree: true });
-            this.log('DOM変更の監視を開始しました', 'info');
+            log('ℹ️ DOM変更の監視を開始しました');
         }
         
         /**
-         * 検索フォームの表示/非表示ボタンを追加する
-         * @param {Element} searchForm - 検索フォームの要素
+         * 単一の要素を非表示にする
          */
-        addSearchFormToggleButton(searchForm) {
-            const button = document.createElement('button');
-            button.textContent = '検索条件を表示/非表示';
-            button.id = 'toggleSearchFormButton';
-            button.style.cssText = 'display: block; margin: 10px auto; padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 4px;';
-
-            searchForm.parentNode.insertBefore(button, searchForm);
-
-            button.addEventListener('click', () => {
-                if (searchForm.style.display === 'none') {
-                    searchForm.style.display = 'block';
-                    button.textContent = '検索条件を非表示';
-                } else {
-                    searchForm.style.display = 'none';
-                    button.textContent = '検索条件を表示';
-                }
-            });
-            
-            this.log('✅ 検索フォームのトグルボタンを追加しました', 'success');
-        }
-
-        /**
-         * ログ出力ヘルパー
-         * @param {string} message - ログメッセージ
-         * @param {string} type - ログの種類 ('info', 'success', 'error', 'start', 'end')
-         */
-        log(message, type = 'info') {
-            if (!CONFIG.LOGGING_ENABLED) return;
-            
-            const prefix = CONFIG.LOGGING_PREFIX;
-            const icon = {
-                'start': '🚀',
-                'end': '🏁',
-                'success': '✅',
-                'error': '❌',
-                'info': 'ℹ️'
-            }[type] || '';
-            
-            console.log(`${icon} ${prefix} ${message}`);
+        hideElement(element, selector) {
+            const uniqueId = element.tagName + element.className + element.id;
+            if (this.hiddenElements.has(uniqueId)) {
+                return false;
+            }
+            element.style.setProperty('display', 'none', 'important');
+            this.hiddenElements.add(uniqueId);
+            log(`✅ 動的に出現した'${selector}' に一致する要素を非表示にしました`, 'success');
+            return true;
         }
     }
 
-    // スクリプトの実行
-    const app = new NextLevelBannerHider();
+    // スクリプト実行
+    const app = new NextLevelHider();
     app.init();
 })();
