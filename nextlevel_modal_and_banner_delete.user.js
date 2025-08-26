@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NEXT LEVEL ジョブリストバナー非表示 (改良版)
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  https://www.e-nextlevel.jp/work/list のバナー要素を効率的に非表示にし、詳細なログを出力
 // @author       You
 // @match        https://www.e-nextlevel.jp/*
