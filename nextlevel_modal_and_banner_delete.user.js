@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         NEXT LEVEL ジョブリストバナー非表示 (改良版)
 // @namespace    http://tampermonkey.net/
-// @version      1.5
-// @description  https://www.e-nextlevel.jp/work/list のバナー要素を効率的に非表示にし、詳細なログを出力
+// @version      1.7
+// @description  https://www.e-nextlevel.jp/work/list のバナー要素と検索フォームを非表示にする
 // @author       You
 // @match        https://www.e-nextlevel.jp/*
 // @grant        GM_addStyle
@@ -12,8 +12,8 @@
     'use strict';
 
     const CONFIG = {
-        // 非表示にしたい要素のセレクター
         SELECTORS_TO_HIDE: [
+            '.my-list__search', // ★今回追加したセレクター
             '.job-list__narrow-down-large--pc',
             '.job-list__narrow-down-large--sp',
             '.common-modal.job-list__banner-modal',
@@ -24,12 +24,9 @@
             '.flicking-viewport.carousel'
         ],
         LOGGING_ENABLED: true,
-        LOGGING_PREFIX: '[NextLevel Banner Hider]'
+        LOGGING_PREFIX: '[NextLevel Hider]'
     };
 
-    /**
-     * ログ出力ヘルパー
-     */
     function log(message, type = 'info') {
         if (!CONFIG.LOGGING_ENABLED) return;
         const prefix = CONFIG.LOGGING_PREFIX;
@@ -45,14 +42,14 @@
 
     /**
      * @class NextLevelHider
-     * バナー要素の非表示とDOM監視を管理
+     * 不要な要素の非表示とDOM監視を管理
      */
     class NextLevelHider {
         constructor() {
             this.hiddenElements = new Set();
             this.observer = null;
         }
-        
+
         init() {
             log('🚀 スクリプトを開始します', 'start');
             this.addInstantCSSRules();
@@ -60,10 +57,6 @@
             log('🏁 初期化完了', 'end');
         }
 
-        /**
-         * GM_addStyle を使って、CSSルールを即座に追加する
-         * これにより、要素のチラつきを防ぐ
-         */
         addInstantCSSRules() {
             const selectors = CONFIG.SELECTORS_TO_HIDE.join(', ');
             if (typeof GM_addStyle !== 'undefined') {
@@ -74,9 +67,6 @@
             }
         }
 
-        /**
-         * DOM変更を監視し、動的に追加された要素を非表示にする
-         */
         startObservingDOM() {
             if (this.observer) return;
             this.observer = new MutationObserver((mutations) => {
@@ -100,23 +90,62 @@
             this.observer.observe(document.body, { childList: true, subtree: true });
             log('ℹ️ DOM変更の監視を開始しました');
         }
-        
-        /**
-         * 単一の要素を非表示にする
-         */
+
         hideElement(element, selector) {
             const uniqueId = element.tagName + element.className + element.id;
             if (this.hiddenElements.has(uniqueId)) {
                 return false;
             }
-            element.style.setProperty('display', 'none', 'important');
+
+            if (this.isModalElement(element)) {
+                this.handleModalElement(element, selector);
+            } else {
+                element.style.setProperty('display', 'none', 'important');
+            }
+            
             this.hiddenElements.add(uniqueId);
             log(`✅ 動的に出現した'${selector}' に一致する要素を非表示にしました`, 'success');
             return true;
         }
+
+        isModalElement(element) {
+            return element.tagName === 'DIALOG' ||
+                   element.classList.contains('common-modal') ||
+                   element.classList.contains('job-list__banner-modal');
+        }
+
+        handleModalElement(element, selector) {
+            if (element.tagName === 'DIALOG' && element.open) {
+                element.close();
+                log(`ダイアログ '${selector}' を閉じました`, 'info');
+            }
+            element.style.setProperty('display', 'none', 'important');
+            this.restoreBodyScroll();
+            log(`モーダル '${selector}' のスクロール制御を解除しました`, 'info');
+        }
+
+        restoreBodyScroll() {
+            const body = document.body;
+            const html = document.documentElement;
+
+            body.style.overflow = '';
+            body.style.position = '';
+            body.style.top = '';
+            body.style.left = '';
+            body.style.right = '';
+            body.style.width = '';
+            body.style.height = '';
+
+            html.style.overflow = '';
+            html.style.position = '';
+
+            body.classList.remove('modal-open', 'no-scroll', 'overflow-hidden');
+            html.classList.remove('modal-open', 'no-scroll', 'overflow-hidden');
+
+            log('ℹ️ bodyのスクロール制御を復元しました');
+        }
     }
 
-    // スクリプト実行
     const app = new NextLevelHider();
     app.init();
 })();
