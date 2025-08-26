@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NEXT LEVEL ジョブリストバナー非表示 (改良版)
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  https://www.e-nextlevel.jp/work/list のバナー要素を効率的に非表示にし、詳細なログを出力
 // @author       You
 // @match        https://www.e-nextlevel.jp/*
@@ -46,6 +46,9 @@
             // 初回実行とDOM監視の開始
             this.hideAllElements();
             this.startObservingDOM();
+
+            // 検索フォームの表示/非表示ボタンを追加
+            this.addSearchFormToggleButton();
 
             this.log('🏁 初期化完了', 'end');
         }
@@ -125,6 +128,37 @@
 
             this.observer.observe(document.body, { childList: true, subtree: true });
             this.log('DOM変更の監視を開始しました', 'info');
+        }
+
+        /**
+         * 検索フォームの表示/非表示ボタンを追加する
+         */
+        addSearchFormToggleButton() {
+            const searchForm = document.querySelector('.my-list__search');
+            if (searchForm) {
+                const button = document.createElement('button');
+                button.textContent = '検索条件を表示/非表示';
+                button.id = 'toggleSearchFormButton';
+                button.style.cssText = 'display: block; margin: 10px auto; padding: 8px 16px; font-size: 14px; cursor: pointer; border: 1px solid #ccc; background-color: #f0f0f0; border-radius: 4px;'; // スタイルを追加
+
+                // フォームの前にボタンを挿入
+                searchForm.parentNode.insertBefore(button, searchForm);
+
+                // ボタンのクリックイベントを設定
+                button.addEventListener('click', () => {
+                    if (searchForm.style.display === 'none') {
+                        searchForm.style.display = 'block';
+                        button.textContent = '検索条件を非表示';
+                    } else {
+                        searchForm.style.display = 'none';
+                        button.textContent = '検索条件を表示';
+                    }
+                });
+                
+                this.log('✅ 検索フォームのトグルボタンを追加しました', 'success');
+            } else {
+                this.log('ℹ️ 検索フォーム要素が見つかりませんでした。ボタンは追加されません。', 'info');
+            }
         }
 
         /**
